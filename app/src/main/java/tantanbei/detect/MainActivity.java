@@ -18,6 +18,8 @@ import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfDouble;
+import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
@@ -85,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
 //                    button.setText("Grey");
 //                    flag = true;
 //                }
-                img = BitmapFactory.decodeResource(getResources(), R.drawable.d);
+                img = BitmapFactory.decodeResource(getResources(), R.drawable.c);
                 detectBody();
             }
         });
@@ -140,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
     private void detectBody() {
         InputStream is = null;
         try {
-            is = getAssets().open("opencv/haarcascade_frontalface_alt2.xml");
+            is = getAssets().open("opencv/haarcascade_mcs_upperbody.xml");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -174,7 +176,8 @@ public class MainActivity extends AppCompatActivity {
                     testMat,
                     new Point(rect.x, rect.y),
                     new Point(rect.x + rect.width, rect.y + rect.height),
-                    new Scalar(255, 0, 0));
+                    new Scalar(255, 0, 0),
+                    3);
             ++bodyNum;
         }
 
