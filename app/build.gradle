@@ -26,13 +26,6 @@ android {
     }
 }
 
-repositories {
-    mavenCentral()
-    maven {
-        url "http://maven2.javacv.googlecode.com/git/"
-    }
-}
-
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
@@ -40,10 +33,6 @@ dependencies {
     })
     compile 'com.android.support:appcompat-v7:24.2.1'
     testCompile 'junit:junit:4.12'
-
-    compile group: 'org.bytedeco', name: 'javacv', version: '1.2'
-    compile group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: '2.4.11-1.2', classifier: 'android-arm'
-    compile group: 'org.bytedeco.javacpp-presets', name: 'ffmpeg', version: '2.6.1-1.2', classifier: 'android-arm'
 
     compile project(':libraries:opencv')
 }
