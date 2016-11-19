@@ -22,6 +22,7 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfDouble;
+import org.opencv.core.MatOfFloat;
 import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
@@ -30,6 +31,7 @@ import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
+import org.opencv.objdetect.HOGDescriptor;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -45,8 +47,7 @@ public class MainActivity extends AppCompatActivity {
     private int absoluteFaceSize;
 
     private CascadeClassifier bodyDetector;
-
-    final private int PICTURE_CHOOSE = 1;
+    private HOGDescriptor hogDescriptor;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,9 +82,8 @@ public class MainActivity extends AppCompatActivity {
                 MatOfRect bodies = new MatOfRect();
 
                 // Use the classifier to detect faces
-                if (bodyDetector != null) {
-                    bodyDetector.detectMultiScale(grayscaleImage, bodies, 1.1, 2, 2,
-                            new Size(absoluteFaceSize, absoluteFaceSize), new Size());
+                if (hogDescriptor != null) {
+                    hogDescriptor.detectMultiScale(grayscaleImage, bodies, new MatOfDouble(1));
                 }
 
                 // If there are any faces found, draw a rectangle around it
@@ -155,6 +155,11 @@ public class MainActivity extends AppCompatActivity {
             bodyDetector = null;
             throw new RuntimeException("bodyDetector create failed");
         }
+
+        hogDescriptor = new HOGDescriptor();
+        hogDescriptor.setSVMDetector(HOGDescriptor.getDefaultPeopleDetector());
+
+
     }
 
     private File createFileFromInputStream(InputStream inputStream) {
