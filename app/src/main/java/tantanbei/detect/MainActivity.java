@@ -13,10 +13,13 @@ import android.widget.Button;
 import android.widget.ImageView;
 
 import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.CameraBridgeViewBase;
+import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfDouble;
 import org.opencv.core.MatOfInt;
@@ -24,6 +27,7 @@ import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
 
@@ -35,17 +39,12 @@ import java.io.OutputStream;
 
 public class MainActivity extends AppCompatActivity {
     Button button;
-    Button phone;
-    ImageView imageView;
+    JavaCameraView camera;
 
-    Bitmap srcBitmap;
-    Bitmap grayBitmap;
-    Bitmap MaskBitmap;
+    private Mat grayscaleImage;
+    private int absoluteFaceSize;
 
-    private Bitmap img = null;
-
-    private static boolean flag = true;
-    private static boolean isFirst = true;                      // Grey
+    private CascadeClassifier bodyDetector;
 
     final private int PICTURE_CHOOSE = 1;
 
@@ -55,53 +54,54 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         button = (Button) findViewById(R.id.button);
-        imageView = (ImageView) findViewById(R.id.image);
-        phone = (Button) findViewById(R.id.phone);
+        camera = (JavaCameraView) findViewById(R.id.camera);
 
-        phone.setOnClickListener(new View.OnClickListener() {
+        camera.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_BACK);
+
+        camera.setCvCameraViewListener(new CameraBridgeViewBase.CvCameraViewListener() {
             @Override
-            public void onClick(View v) {
-                // get a picture form your phone
-                Intent photoPickerIntent = new Intent(Intent.ACTION_PICK);
-                photoPickerIntent.setType("image/*");
-                startActivityForResult(photoPickerIntent, PICTURE_CHOOSE);
+            public void onCameraViewStarted(int width, int height) {
+                grayscaleImage = new Mat(height, width, CvType.CV_8UC4);
+
+                // The faces will be a 20% of the height of the screen
+                absoluteFaceSize = (int) (height * 0.2);
+            }
+
+            @Override
+            public void onCameraViewStopped() {
+                grayscaleImage = null;
+            }
+
+            @Override
+            public Mat onCameraFrame(Mat inputFrame) {
+
+                // Create a grayscale image
+                Imgproc.cvtColor(inputFrame, grayscaleImage, Imgproc.COLOR_RGB2GRAY);
+
+                MatOfRect bodies = new MatOfRect();
+
+                // Use the classifier to detect faces
+                if (bodyDetector != null) {
+                    bodyDetector.detectMultiScale(grayscaleImage, bodies, 1.1, 2, 2,
+                            new Size(absoluteFaceSize, absoluteFaceSize), new Size());
+                }
+
+                // If there are any faces found, draw a rectangle around it
+                Rect[] facesArray = bodies.toArray();
+                for (int i = 0; i < facesArray.length; i++) {
+                    Core.rectangle(inputFrame, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0, 255), 3);
+                }
+
+                return inputFrame;
             }
         });
 
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // TODO Auto-generated method stub
-//                if(isFirst)
-//                {
-//                    procSrc2Gray();
-//                    isFirst = false;
-//                }
-//                if(flag){
-//                    imageView.setImageBitmap(grayBitmap);
-//                    button.setText("Origin");
-//                    flag = false;
-//                }
-//                else{
-//                    imageView.setImageBitmap(srcBitmap);
-//                    button.setText("Grey");
-//                    flag = true;
-//                }
-                img = BitmapFactory.decodeResource(getResources(), R.drawable.c);
-                detectBody();
+                camera.enableView();
             }
         });
-    }
-
-    public void procSrc2Gray() {
-        Mat rgbMat = new Mat();
-        Mat grayMat = new Mat();
-        srcBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.a);
-        grayBitmap = Bitmap.createBitmap(srcBitmap.getWidth(), srcBitmap.getHeight(), Bitmap.Config.RGB_565);
-        Utils.bitmapToMat(srcBitmap, rgbMat);//convert original bitmap to Mat, R G B.
-        Imgproc.cvtColor(rgbMat, grayMat, Imgproc.COLOR_RGB2GRAY);//rgbMat to gray grayMat
-        Utils.matToBitmap(grayMat, grayBitmap); //convert mat to bitmap
-        Log.d("tan", "procSrc2Gray sucess...");
     }
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
@@ -112,13 +112,13 @@ public class MainActivity extends AppCompatActivity {
             switch (status) {
                 case BaseLoaderCallback.SUCCESS:
                     Log.d("tan", "Load success");
+                    init();
                     break;
                 default:
                     super.onManagerConnected(status);
                     Log.d("tan", "Load fail");
                     break;
             }
-
         }
     };
 
@@ -127,7 +127,6 @@ public class MainActivity extends AppCompatActivity {
         // TODO Auto-generated method stub
         super.onResume();
         //load OpenCV engine and init OpenCV library
-        isFirst = true;
         if (!OpenCVLoader.initDebug()) {
             Log.d("OpenCV", "Internal OpenCV library not found. Using OpenCV Manager for initialization");
             OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_2_4_11, this, mLoaderCallback);
@@ -135,11 +134,10 @@ public class MainActivity extends AppCompatActivity {
             Log.d("OpenCV", "OpenCV library found inside package. Using it!");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
-        Log.i("tan", "onResume sucess load OpenCV...");
-
+        Log.d("tan", "onResume sucess load OpenCV...");
     }
 
-    private void detectBody() {
+    private void init() {
         InputStream is = null;
         try {
             is = getAssets().open("opencv/haarcascade_mcs_upperbody.xml");
@@ -150,85 +148,12 @@ public class MainActivity extends AppCompatActivity {
         File f = createFileFromInputStream(is);
         Log.d("tan", "xml file is exist: " + f.exists());
 
-        CascadeClassifier bodyDetector = new CascadeClassifier(f.getAbsolutePath());
+        bodyDetector = new CascadeClassifier(f.getAbsolutePath());
 
         if (bodyDetector.empty()) {
             Log.d("tan", "bodyDetector is empty ");
-            return;
-        }
-
-        // Bitmap bmptest = BitmapFactory.decodeResource(getResources(),
-        // R.drawable.lena);
-        Mat testMat = new Mat();
-        Utils.bitmapToMat(img, testMat);
-
-        // Detect faces in the image.
-        // MatOfRect is a special container class for Rect.
-        MatOfRect bodyDetections = new MatOfRect();
-        bodyDetector.detectMultiScale(testMat, bodyDetections);
-
-        Log.d("tan", String.format("Detected %s faces", bodyDetections.toArray().length));
-
-        int bodyNum = 0;
-        // Draw a bounding box around each face.
-        for (Rect rect : bodyDetections.toArray()) {
-            Core.rectangle(
-                    testMat,
-                    new Point(rect.x, rect.y),
-                    new Point(rect.x + rect.width, rect.y + rect.height),
-                    new Scalar(255, 0, 0),
-                    3);
-            ++bodyNum;
-        }
-
-        // Save the visualized detection.
-        // Bitmap bmpdone = Bitmap.createBitmap(bmptest.getWidth(),
-        // bmptest.getHeight(), Config.RGB_565);
-        Utils.matToBitmap(testMat, img);
-        imageView.setImageBitmap(img);
-
-                /*Staticdetection2Activity.this.runOnUiThread(new Runnable() {
-
-                    public void run() {
-                        // show the image
-                        imageView.setImageBitmap(img);
-                        // textView.setText("Finished, "+ count + " faces.");
-                        textView.setText("Finished, " + " faces.");
-                        // set edit text
-                        // editText.setText(str);
-                    }
-                });*/
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode,
-                                    Intent intent) {
-        super.onActivityResult(requestCode, resultCode, intent);
-
-        // the image picker callback
-        if (requestCode == PICTURE_CHOOSE) {
-            if (intent != null) {
-
-                Cursor cursor = getContentResolver().query(intent.getData(),
-                        null, null, null, null);
-                cursor.moveToFirst();
-                int idx = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA);
-                String fileSrc = cursor.getString(idx);
-
-                BitmapFactory.Options options = new BitmapFactory.Options();
-                options.inJustDecodeBounds = true;
-                img = BitmapFactory.decodeFile(fileSrc, options);
-
-                options.inSampleSize = Math.max(1, (int) Math.ceil(Math.max(
-                        (double) options.outWidth / 1024f,
-                        (double) options.outHeight / 1024f)));
-                options.inJustDecodeBounds = false;
-                img = BitmapFactory.decodeFile(fileSrc, options);
-
-                imageView.setImageBitmap(img);
-            } else {
-                Log.d("tan", "idButSelPic Photopicker canceled");
-            }
+            bodyDetector = null;
+            throw new RuntimeException("bodyDetector create failed");
         }
     }
 
