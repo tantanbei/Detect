@@ -1,29 +1,20 @@
 package tantanbei.detect;
 
-import android.content.Intent;
-import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
-import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfDouble;
-import org.opencv.core.MatOfFloat;
-import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
@@ -44,7 +35,8 @@ public class MainActivity extends AppCompatActivity {
     JavaCameraView camera;
 
     private Mat grayscaleImage;
-    private int absoluteFaceSize;
+    private int halfHeight;
+    private int halfWidth;
 
     private CascadeClassifier bodyDetector;
     private HOGDescriptor hogDescriptor;
@@ -64,8 +56,8 @@ public class MainActivity extends AppCompatActivity {
             public void onCameraViewStarted(int width, int height) {
                 grayscaleImage = new Mat(height, width, CvType.CV_8UC4);
 
-                // The faces will be a 20% of the height of the screen
-                absoluteFaceSize = (int) (height * 0.2);
+                halfHeight = (int) (height * 0.25);
+                halfWidth = (int) (width * 0.25);
             }
 
             @Override
@@ -76,8 +68,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public Mat onCameraFrame(Mat inputFrame) {
 
+                long start = System.currentTimeMillis();
+                Log.d("tan", "onCameraFrame: " + inputFrame.size());
+
                 // Create a grayscale image
                 Imgproc.cvtColor(inputFrame, grayscaleImage, Imgproc.COLOR_RGB2GRAY);
+                Imgproc.resize(grayscaleImage, grayscaleImage, new Size(halfWidth, halfHeight));
+
+                Log.d("tan", "onCameraFrame convert to gray: " + (System.currentTimeMillis() - start) + " size :" + grayscaleImage.size());
 
                 MatOfRect bodies = new MatOfRect();
 
@@ -86,11 +84,19 @@ public class MainActivity extends AppCompatActivity {
                     hogDescriptor.detectMultiScale(grayscaleImage, bodies, new MatOfDouble(1));
                 }
 
+                Log.d("tan", "onCameraFrame detect time: " + (System.currentTimeMillis() - start));
+
                 // If there are any faces found, draw a rectangle around it
-                Rect[] facesArray = bodies.toArray();
-                for (int i = 0; i < facesArray.length; i++) {
-                    Core.rectangle(inputFrame, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0, 255), 3);
+                Rect[] bodiesArray = bodies.toArray();
+                for (int i = 0; i < bodiesArray.length; i++) {
+                    Core.rectangle(inputFrame, new Point(bodiesArray[i].x * 4, bodiesArray[i].y * 4),
+                            new Point((bodiesArray[i].x + bodiesArray[i].width) * 4, (bodiesArray[i].y + bodiesArray[i].height) * 4),
+                            new Scalar(0, 255, 0, 255), 3);
                 }
+
+                long end = System.currentTimeMillis();
+
+                Log.d("tan", "onCameraFrame detect and draw time: " + (end - start));
 
                 return inputFrame;
             }
